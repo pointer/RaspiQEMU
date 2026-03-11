@@ -58,15 +58,21 @@ The most stable command achieved during testing was:
 
 ```bash
 qemu-system-aarch64 \
-  -M raspi3b \
-  -cpu cortex-a53 \
-  -m 1G \
-  -kernel kernel8.img \
-  -dtb rpi3b.dtb \
-  -drive "file=2025-12-04-raspios-trixie-arm64-lite.img,if=sd,format=raw" \
-  -nographic \
-  -serial mon:stdio \
-  -append "rw console=ttyAMA0,115200 root=/dev/mmcblk0p2 rootwait fsck.mode=skip init=/bin/sh"
+  -name "$VM_NAME" \
+  -machine virt \
+  -cpu cortex-a57 \
+  -smp "$CPUS" \
+  -m "$MEM" \
+  -accel tcg \
+  -drive if=pflash,format=raw,unit=0,file="$EFI_CODE",readonly=on \
+  -drive if=pflash,format=raw,unit=1,file="$EFI_VARS" \
+  -drive file="$IMAGE",if=virtio \
+  -drive file=seed.iso,format=raw,if=virtio \
+  -virtfs local,path="./shared_project",mount_tag=host_share,security_model=none,id=virtfs0 \
+  -netdev user,id=net0,hostfwd=tcp::"$PORT"-:22 \
+  -device virtio-net-pci,netdev=net0 \
+  -device virtio-rng-pci \
+  -nographic -serial mon:stdio
 
 ```
 
@@ -75,3 +81,12 @@ qemu-system-aarch64 \
 1. **Avoid Pipes for Debugging:** Do not use `| tee` when troubleshooting boot issues; it hides real-time errors.
 2. **Use Stable Releases:** Raspberry Pi OS "Trixie" is a testing branch and showed significant filesystem instability in emulation.
 3. **Pivot:** The project is moving to **Raspberry Pi OS Bookworm (Stable)** for a more reliable development environment.
+
+
+### **Quick Start" steps:**
+
+  Start the VM: ./boot-arm64.sh
+
+  Mount the Project (Run inside VM):
+        
+    sudo mount -t 9p -o trans=virtio,version=9p2000.L,access=any host_share /mnt
