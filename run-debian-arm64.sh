@@ -9,8 +9,19 @@ CPUS="2"
 SSH_PORT="2222"
 USER_NAME="debian"
 USER_PASS="debian"
+SHARE_DIR="./shared_project"
 
-# --- 1. Dependencies Check ---
+# --- 1. Shared Directory Check ---
+if [ ! -d "$SHARE_DIR" ]; then
+    echo "📂 Creating shared directory: $SHARE_DIR"
+    mkdir -p "$SHARE_DIR"
+    # Optional: Put your project files in there automatically if they exist locally
+    cp loop.cpp CMakeLists.txt CMakePresets.json "$SHARE_DIR/" 2>/dev/null
+else
+    echo "✅ Shared directory '$SHARE_DIR' found."
+fi
+
+# --- 2. Dependencies Check ---
 deps=(qemu-system-aarch64 wget genisoimage uuidgen)
 for cmd in "${deps[@]}"; do
     if ! command -v "$cmd" &> /dev/null; then
@@ -19,13 +30,13 @@ for cmd in "${deps[@]}"; do
     fi
 done
 
-# --- 2. Image Acquisition ---
+# --- 3. Image Acquisition ---
 if [ ! -f "$IMAGE" ]; then
     echo "📥 Downloading Debian 12 Bookworm ARM64..."
     wget -O "$IMAGE" "$IMAGE_URL"
 fi
 
-# --- 3. Cloud-Init Generation ---
+# --- 4. Cloud-Init Generation ---
 # This ensures the 'debian' user exists with the correct password immediately
 if [ ! -f "seed.iso" ]; then
     echo "🛠️ Creating Cloud-Init configuration..."
@@ -63,10 +74,12 @@ qemu-system-aarch64 \
   -smp "$CPUS" \
   -m "$MEM" \
   -accel tcg \
+  -virtfs local,path="$SHARE_DIR",mount_tag=host_share,security_model=none,id=virtfs0 \
   -drive if=pflash,format=raw,unit=0,file="$EFI_CODE",readonly=on \
   -drive if=pflash,format=raw,unit=1,file="$EFI_VARS" \
   -drive file="$IMAGE",if=virtio \
   -drive file=seed.iso,format=raw,if=virtio \
+  -virtfs local,path="$SHARE_DIR",mount_tag=host_share,security_model=none,id=virtfs0 \  
   -netdev user,id=net0,hostfwd=tcp::"$SSH_PORT"-:22 \
   -device virtio-net-pci,netdev=net0 \
   -device virtio-rng-pci \
