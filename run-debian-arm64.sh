@@ -67,6 +67,8 @@ echo "🔑 Login: $USER_NAME / Password: $USER_PASS"
 echo "🌐 SSH: ssh $USER_NAME@localhost -p $SSH_PORT"
 echo "--------------------------------------------------------"
 
+rm -f varstore.fd && cp /usr/share/AAVMF/AAVMF_VARS.fd varstore.fd
+
 qemu-system-aarch64 \
   -name "$VM_NAME" \
   -machine virt \
