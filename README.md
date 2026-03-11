@@ -75,7 +75,3 @@ qemu-system-aarch64 \
 1. **Avoid Pipes for Debugging:** Do not use `| tee` when troubleshooting boot issues; it hides real-time errors.
 2. **Use Stable Releases:** Raspberry Pi OS "Trixie" is a testing branch and showed significant filesystem instability in emulation.
 3. **Pivot:** The project is moving to **Raspberry Pi OS Bookworm (Stable)** for a more reliable development environment.
-
----
-
-**Status:** *Archived - Transitioning to Bookworm Image.*
