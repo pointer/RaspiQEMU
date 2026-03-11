@@ -1,87 +1,61 @@
 #!/bin/bash
 
-# --- Configuration ---
+# --- 1. Configuration ---
 VM_NAME="debian-bookworm-arm64"
 IMAGE="debian-12-generic-arm64.qcow2"
 IMAGE_URL="https://cloud.debian.org/images/cloud/bookworm/latest/debian-12-generic-arm64.qcow2"
+SHARE_DIR="./shared_project"
+SSH_PORT="2222"
 MEM="2G"
 CPUS="2"
-SSH_PORT="2222"
-USER_NAME="debian"
-USER_PASS="debian"
-SHARE_DIR="./shared_project"
 
-# --- 1. Shared Directory Check ---
-if [ ! -d "$SHARE_DIR" ]; then
-    echo "📂 Creating shared directory: $SHARE_DIR"
-    mkdir -p "$SHARE_DIR"
-    # Optional: Put your project files in there automatically if they exist locally
-    cp loop.cpp CMakeLists.txt CMakePresets.json "$SHARE_DIR/" 2>/dev/null
-else
-    echo "✅ Shared directory '$SHARE_DIR' found."
-fi
-
-# --- 2. Dependencies Check ---
-deps=(qemu-system-aarch64 wget genisoimage uuidgen)
-for cmd in "${deps[@]}"; do
-    if ! command -v "$cmd" &> /dev/null; then
-        echo "❌ Error: $cmd is missing. Install via: sudo apt install qemu-system-arm wget genisoimage uuid-runtime"
-        exit 1
-    fi
-done
-
-# --- 3. Image Acquisition ---
+# --- 2. Prerequisites & Folder Check ---
+mkdir -p "$SHARE_DIR"
 if [ ! -f "$IMAGE" ]; then
-    echo "📥 Downloading Debian 12 Bookworm ARM64..."
+    echo "📥 Downloading Debian 12 ARM64 image..."
     wget -O "$IMAGE" "$IMAGE_URL"
 fi
 
-# --- 4. Cloud-Init Generation ---
-# This ensures the 'debian' user exists with the correct password immediately
-if [ ! -f "seed.iso" ]; then
-    echo "🛠️ Creating Cloud-Init configuration..."
-    cat <<EOF > user-data
+# --- 3. Generate Boot & Login Assets ---
+# Reset UEFI variables to ensure clean boot order
+rm -f varstore.fd
+cp /usr/share/AAVMF/AAVMF_VARS.fd varstore.fd
+
+# Create Login Credentials (Cloud-Init)
+cat <<EOF > user-data
 #cloud-config
-user: $USER_NAME
-password: $USER_PASS
+password: debian
 chpasswd: { expire: False }
 ssh_pwauth: True
-sudo: ALL=(ALL) NOPASSWD:ALL
 EOF
-    echo "instance-id: $(uuidgen)" > meta-data
-    genisoimage -output seed.iso -volid cidata -joliet -rock user-data meta-data
-fi
+echo "instance-id: $(uuidgen)" > meta-data
 
-# --- 4. UEFI Firmware setup ---
-# Adjust paths if using a non-Debian/Ubuntu host
-EFI_CODE="/usr/share/AAVMF/AAVMF_CODE.fd"
-EFI_VARS="varstore.fd"
-if [ ! -f "$EFI_VARS" ]; then
-    cp /usr/share/AAVMF/AAVMF_VARS.fd "$EFI_VARS"
-fi
+# Create UEFI Auto-Boot Script
+cat <<EOF > startup.nsh
+FS0:
+cd EFI\debian
+grubaa64.efi
+EOF
 
-# --- 5. Launch VM ---
-echo "--------------------------------------------------------"
-echo "🚀 Booting ARM64 Debian Bookworm"
-echo "🔑 Login: $USER_NAME / Password: $USER_PASS"
-echo "🌐 SSH: ssh $USER_NAME@localhost -p $SSH_PORT"
-echo "--------------------------------------------------------"
+# Package everything into the Seed ISO
+genisoimage -output seed.iso -volid cidata -joliet -rock user-data meta-data startup.nsh
 
-rm -f varstore.fd && cp /usr/share/AAVMF/AAVMF_VARS.fd varstore.fd
+# --- 4. Launch QEMU ---
+echo "🚀 Booting $VM_NAME..."
+echo "📂 Shared folder '$SHARE_DIR' available as 'host_share'"
+echo "🔑 Login: debian / Password: debian"
 
 qemu-system-aarch64 \
   -name "$VM_NAME" \
   -machine virt \
   -cpu cortex-a57 \
-  -smp "$CPUS" \
-  -m "$MEM" \
+  -smp "$CPUS" -m "$MEM" \
   -accel tcg \
-  -virtfs local,path="$SHARE_DIR",mount_tag=host_share,security_model=none,id=virtfs0 \
-  -drive if=pflash,format=raw,unit=0,file="$EFI_CODE",readonly=on \
-  -drive if=pflash,format=raw,unit=1,file="$EFI_VARS" \
+  -drive if=pflash,format=raw,unit=0,file="/usr/share/AAVMF/AAVMF_CODE.fd",readonly=on \
+  -drive if=pflash,format=raw,unit=1,file="varstore.fd" \
   -drive file="$IMAGE",if=virtio \
   -drive file=seed.iso,format=raw,if=virtio \
-  -virtfs local,path="$SHARE_DIR",mount_tag=host_share,security_model=none,id=virtfs0 \  
+  -virtfs local,path="$SHARE_DIR",mount_tag=host_share,security_model=none,id=virtfs0 \
   -netdev user,id=net0,hostfwd=tcp::"$SSH_PORT"-:22 \
   -device virtio-net-pci,netdev=net0 \
   -device virtio-rng-pci \
