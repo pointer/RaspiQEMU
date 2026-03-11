@@ -22,3 +22,37 @@ Instead of emulating an old IDE or SATA controller, we use if=virtio. This is a 
 
     -display none -serial mon:stdio: This sends the VM's output directly to your terminal. It’s perfect for server environments or remote SSH sessions where a GUI window isn't possible.
 
+### **Misc**
+
+#### **How to use this ARM64 Environment**
+Install Host Tools:
+
+        sudo apt update && sudo apt install qemu-system-arm qemu-efi-aarch64 libguestfs-tools wget
+
+#### **How to Transfer Files to the VM**
+
+Since you have SSH mapped to port 2222, you can use scp to move code into the embedded environment:
+    
+        scp -P 2222 ./my-code-file.py debian@localhost:/home/debian/
+
+#### **How to exit the VM**
+Because the script uses -nographic, the terminal is "captured." To exit:
+    
+            Press Ctrl + A  
+            Then press X
+
+#### **Host Dependencies**
+
+Users running this for the first time on a fresh Linux install will need:
+    
+            sudo apt update
+            sudo apt install qemu-system-arm qemu-efi-aarch64 genisoimage uuid-runtime
+
+#### **🔑 How to Log In**
+
+Run the script: ./boot-arm64.sh
+Wait for the Prompt: You will see a debian login: prompt in your terminal.
+
+    Username: debian
+    Password: debian           
+    
