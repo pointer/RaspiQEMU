@@ -1,0 +1,29 @@
+
+
+
+
+sudo apt update && sudo apt install -y build-essential cmake gdb
+(gdb) set substitute-path /home/kateb/qemu/shared_project /mnt/shared_project
+
+
+
+📂 Best Practice for GitHub
+
+To make this seamless for anyone using your repository, you can automate this mapping so you don't have to type it every time.
+Option A: Create a .gdbinit file in the VM
+
+Create a file named .gdbinit in the debian user's home directory inside the VM:
+Bash
+
+# Inside the VM
+cat <<EOF > ~/.gdbinit
+set substitute-path /home/kateb/qemu/shared_project /mnt/shared_project
+set pagination off
+EOF
+
+
+# Unmount first
+sudo umount /mnt/shared_project
+
+# Remount with 'access=any' and 'msize' for better performance
+sudo mount -t 9p -o trans=virtio,version=9p2000.L,access=any,msize=1048576 host_share /mnt/shared_project
